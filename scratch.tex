@@ -128,5 +128,43 @@
     To prove this is a tight bound, we can show that the probability given by \(p(\epsilon)\) is a tight lower bound to the actual probability.
 \end{proof}
 
+\begin{prop}[Existence and bound for deterministic finite MDP]
+    Let \(\mathcal{M} = (S, A, H, P, R, \rho)\) be a deterministic MDP with sparse reward, and that \(R(s, a) = \mathcal{X}(s = g)\) for some \(g \in A\).
+    
+    Then there exists a finite sequence of $H$ MDP's \(\mathcal{M}_i = (S, A, H, P_i, R_i, \rho_i)\) such that the following algorithm
+
+    \begin{enumerate}
+        \item Initialize \(\pi_0\) to be a random policy.
+        \item For \(1 \leq i \leq H\), Follow \(\pi_{i-1}\) with an \(\epsilon_i\)-greedy policy until an optimal policy is found.
+    \end{enumerate}
+
+    will find an optimal policy with probability \(1 - \delta\) in at least \(x\) episodes.
+\end{prop}
+
+\begin{proof}[Proof]
+    Let \(s_0, s_1, \ldots, s_H = g\) be a trajectory that the optimal policy for \(\mathcal{M}\) takes.
+    Construct \(\mathcal{M}_i\) such that \(R_i(s, a) = \mathcal{X}(s = s_i)\) and \(P_i(s_i | s_i, a) = 1 \; \forall a \in A\), otherwise \(P_i = P\).
+
+    Then for each \(\mathcal{M}_i\), the probability that the \(\epsilon\)-greedy algorithm will achieve the optimal policy is
+
+    \[p(\epsilon) = {i-1 \choose 0} (1-\epsilon)^{i-1}(\frac{\epsilon}{k}) + {i-1 \choose 1}(1-\epsilon)^{i-2}(\frac{\epsilon}{k})^2 + \ldots + {i-1 \choose i-1} (\frac{\epsilon}{k})^j\]
+    \[= (\frac{\epsilon}{k})\sum_{j=0}^{i-1}{i-1 \choose j} (1-\epsilon)^{i-1-j}(\frac{\epsilon}{k})^{j}\]
+    \[= (\frac{\epsilon}{k})(1-\epsilon + \frac{\epsilon}{k})^{i-1}.\]
+
+    For \(i \geq 2\), \(p\) is concave (need a proof of this), so we can find the maximal probability by setting the derivative to 0.
+
+    \[p'(\epsilon^*) = 0\]
+    \[\Rightarrow \frac{(1-\epsilon^* + \frac{\epsilon^*}{k})^{i-1}}{k} + (\frac{\epsilon^*}{k})(i-1)(1 - \epsilon^* + \frac{\epsilon^*}{k})^{i-2}(\frac{1}{k}-1) = 0\]
+    \[\Rightarrow \epsilon^* = \frac{k}{i(k-1)}\]
+
+    So for \(\mathcal{M}_i\), the probability of reaching the optimal policy in each episode is
+    \[p_i(\epsilon^*) = (\frac{\frac{k}{i(k-1)}}{k})(1 - \frac{k}{i(k-1)} + \frac{\frac{k}{i(k-1)}}{k})^{i-1}\]
+    \[= \frac{i-1}{i^2(k-1)}\]
+
+    
+
+
+\end{proof}
+
 
 \end{document}
