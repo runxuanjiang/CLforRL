@@ -51,6 +51,8 @@
 
 \maketitle
 
+\section{Deterministic MDP}
+
 \begin{prop}[Existence and bound for deterministic finite MDP.]
     Let \(\mathcal{M} = (S, A, H, P, R, \rho)\) be a deterministic MDP with sparse reward, and that \(R(s, a) = \mathcal{X}(s = g)\) where for some \(g \in A\).
     
@@ -161,10 +163,92 @@
     \[p_i(\epsilon^*) = (\frac{\frac{k}{i(k-1)}}{k})(1 - \frac{k}{i(k-1)} + \frac{\frac{k}{i(k-1)}}{k})^{i-1}\]
     \[= \frac{i-1}{i^2(k-1)}\]
 
-    
-
-
 \end{proof}
+
+\section{Curriculum Learning with Model-Based algorithms}
+
+Given a model-based reinforcement learning algorithm (such as RMAX or UCB), we want to show that we can solve MDP's using the curriculum learning paradigm on the MDP's used by the algorithm to "model" the MDP to be solved. Formally, such algorithms generate a sequence of MDP's \(M_1, \ldots, M_n\) with corresponding optimal policies \(\pi^*_1, \ldots, \pi^*_n\). We want to show that by using \(\pi^*_{i-1}\) with \(\epsilon\)-greedy on \(M_i\) we can achieve optimal regret bounds for \(M_i\). Through induction, we therefore have a "curriculum" for learning the MDP.
+
+\subsection{RMAX}
+
+We start with an episodic nonstationery MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho)\). Let \(L\) be a collection of states and actions \(L \subset \mathcal{S} \times \mathcal{A}\) corresponding to the set of states marked unknown in the RMAX algorithm.
+
+\begin{defn}[\(M_L\)]
+    Let \(M\) and \(L\) be defined as above. We define \(M_L\) as a MDP with the same states and actions as \(M\), and with the same rewards and transitions for \((s, a) \notin L\). For \((s, a) \in L\), the the reward will be equal to \(R_{max}\) and the transition will lead to an absorbing state that always gives reward \(R_{max}\).
+\end{defn}
+
+The RMAX algorithm works by starting with \(L_0 = \mathcal{S} \times \mathcal{A}\), and using the optimal policy for \(M_{L_0}\) on \(M\). Once enough samples have been collected from a state-action pair \((s, a)\), it is removed from \(L_0\) to get \(L_1 = L_0 \setminus \{(s, a)\}\), and then using the optimal policy for \(M_{L_1}\). This is done until there are no unknown states left (i.e., \(L\) is empty).
+
+Note that
+\[\mathcal{S} \times \mathcal{A} = L_0 \supset L_1 \supset \ldots \supset L_{SA} = \emptyset\]
+
+Denote \(M_{L_j}\) as \(M_j\). The following describes the main theorem.
+
+\begin{thm}[]
+    Fix \(0 < \delta < 1, \epsilon > 0\). Then we can find an \(\epsilon\)-optimal policy with probability higher than \(1 - \delta\) by performing the following steps on the sequence of MDP's \(M_1, \ldots, M_{SA}\) with corresponding optimal policies \(\pi^*_{1}, \pi^{*}_{SA}\):
+
+    \begin{itemize}
+        \item Initialize \(\pi_0\) to be a random policy.
+        \item For \(t = 1, \ldots, n\), follow \(\pi_{t-1}\) with \(\epsilon\)-greedy exploration to collect \(K_2\) trajectories. Compute the optimal policy \(\pi_t\) from the model learned by the trajectories.
+        \item Output \(\pi_{SA}\).
+    \end{itemize}
+    
+\end{thm}
+
+
+\begin{lemma}[]
+    Let \(\alpha > 0\) and \(1 \leq j \leq SA\). Denote \((s, a)\) to be the entry in \(L_{j-1}\) but not in \(L_{j}\). Consider playing the policy \(\pi_{j-1}^*\) with \(\epsilon\)-greedy on \(M_j\). Then either
+
+    \begin{enumerate}
+        \item \(V^{\pi_{j-1}^*}_{M_j} > V^{\pi_{j}^*}_{M_j} - \alpha\)
+        \item \((s, a)\) will be played with probability of at least \(\frac{\alpha}{H*R_{max}}\).
+    \end{enumerate}
+    
+\end{lemma}
+
+\begin{proof}[Proof]
+    Let \(T\) be the set of possible trajectories in \(M_j\). Then
+    \[|V^{\pi_{j-1}^*}_{M_{j-1}} - V^{\pi_{j}^*}_{M_j}| \leq |\sum_{t \in T} Pr_{M_{j-1}, \pi_{j-1}}[t] V_{M_{j-1}}(t) - \sum_{t \in T} Pr_{M_{j}, \pi_{j}}[t] V_{M_{j}}(t)|\]
+    
+    Let \(T'\) be the set of trajectories that passes through \((s, a)\). Then the above expression can be reduced to
+    \[|\sum_{t \in T'} Pr_{M_{j-1}, \pi_{j-1}}[t] V_{M_{j-1}}(t) - \sum_{t \in T'} Pr_{M_{j}, \pi_{j}}[t] V_{M_{j}}(t)|\]
+    \[\leq H*R_{max} \sum_{t \in T'} Pr_{M_{j-1}, \pi_{j-1}}[t] - Pr_{M_{j}, \pi_{j}}[t] \leq H * R_{max} * \sum_{t \in T'} Pr_{M_{j}, \pi_{j-1}}[t]\]
+
+    Note that \(\sum_{t \in T'} Pr_{M_{j}, \pi_{j-1}}[t]\) is the probability of \(\pi_{j-1}\) of reaching \((s, a)\). So if it is higher than \(\frac{\alpha}{H * R_{max}}\) then (1) holds and we are done. Otherwise, we have that \(|V^{\pi_{j-1}^*}_{M_{j-1}} - V^{\pi_{j}^*}_{M_j}| \leq \alpha\) which means that (2) holds.
+\end{proof}
+
+\begin{lemma}[]
+    Fix \(0 < \delta < 1\). Then if we obtain \(K_1 = max((\frac{4SHR_max}{\epsilon})^3, -6\ln^3(\frac{\delta}{6SA^2})) + 1\) samples for \((s, a)\) then the estimate for the transition probability for \((s, a)\) is within \(\frac{\epsilon}{2*SHR_{max}}\) of the actual probabilities.
+\end{lemma}
+
+\begin{proof}[Proof]
+    Use Chernoff bound and pigeonhole principle.
+\end{proof}
+
+\begin{lemma}[]
+    Fix \(0 < \delta < 1\) and \(\epsilon > 0\). Then we can find an \(\epsilon\)-optimal policy with probability higher than \(1-\delta\) for MDP \(M_j\) after collecting trajectories by running policy \(\pi_{j-1}\) with \(\epsilon\)-greedy exploration for \(K_2\) episodes where \(K_2^{\frac{1}{3}} + K_2 \frac{\alpha}{H*R_{max}} > A^2 S K_1\) and computing the optimal policy for that model.
+\end{lemma}
+
+\begin{note}[]
+    We may require less than this number since we only have a single unknown state.
+\end{note}
+
+\begin{proof}[Proof]
+    By the previous two lemmas, this number of steps ensures that \(K_1\) samples are obtained for \((s, a)\) with high (greater than \(1-\delta\)) probability. Thus, we can accurately estimate the MDP \(M_j\) with a TV distance of less than \(\frac{\epsilon}{2*SHR_{max}}\). By lemma 4 in the R-max paper, this means that the optimal value function of the estimated MDP and \(M_j\) are \(\epsilon\) close to each other. So calculate the optimal policy for the estimated MDP to get the resulting policy.
+\end{proof}
+
+\begin{note}[]
+    In this case we don't really use \(\epsilon\)-greedy (we set \(\epsilon\) to zero).
+\end{note}
+
+\begin{proof}[Proof (of Theorem)]
+    Follows from previous lemma.
+\end{proof}
+
+\subsection{UCRL}
+
+
+
 
 
 \end{document}
