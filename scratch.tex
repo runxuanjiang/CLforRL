@@ -53,35 +53,45 @@
 
 \section{Deterministic MDP}
 
+We first consider the case of using curriculum learning on an MDP with deterministic reward and transitions.
+
 \begin{prop}[Existence and bound for deterministic finite MDP.]
-    Let \(\mathcal{M} = (S, A, H, P, R, \rho)\) be a deterministic MDP with sparse reward, and that \(R(s, a) = \mathcal{X}(s = g)\) where for some \(g \in A\).
+    Let \(\mathcal{M} = (\mathcal{S}, \mathcal{A}, H, P, R, \rho)\) be a deterministic MDP with sparse reward, and that \(R(s, a) = \mathcal{X}(s = g)\) where for some \(g \in A\).
     
-    Then there exists a finite sequence of $H$ MDP's \(\mathcal{M}_i = (S, A, H, P_i, R_i, \rho_i)\) such that the following algorithm
+    Then there exists a finite sequence of $H$ MDP's \(\mathcal{M}_i = (\mathcal{S}, \mathcal{A}, H, P_i, R_i, \rho_i)\) such that the following algorithm
 
     \begin{enumerate}
         \item Initialize \(\pi_0\) to be a random policy.
         \item For \(1 \leq i \leq H\), Follow \(\pi_{i-1}\) with an \(\epsilon_i\)-greedy policy until an optimal policy is found.
     \end{enumerate}
 
-    will find an optimal policy for \(\mathcal{M}\) in \(O(H^2k)\) episodes in expectation, where \(k = A\).
+    will find an optimal policy for \(\mathcal{M}\) in \(O(H^2k)\) episodes in expectation, where \(k = |\mathcal{A}|\).
     
 \end{prop}
 
 \begin{proof}[Proof]
     Let \(s_0, s_1, \ldots, s_H = g\) be a trajectory that the optimal policy for \(\mathcal{M}\) takes.
-    Construct \(\mathcal{M}_i\) such that \(R_i(s, a) = \mathcal{X}(s = s_i)\) and \(P_i(s_i | s_i, a) = 1 \; \forall a \in A\), otherwise \(P_i = P\).
+    Construct \(\mathcal{M}_i\) such that \(R_i(s, a) = \mathcal{X}(s = s_i)\) and \(P_i(s_i | s_i, a) = 1 \; \forall a \in A\), otherwise \(P_i = P\) for \(1 \leq i \leq H\).
 
-    Then for each \(\mathcal{M}_i\), the probability that the \(\epsilon\)-greedy algorithm will achieve the optimal policy is bounded below by
+    Let \(p_i(\epsilon)\) denote the probability that the \(\epsilon\)-greedy algorithm will achieve the optimal policy for MDP \(\mathcal{M}_i\). Then we have 
 
-    \[p(\epsilon) = (1-\epsilon)^{i-1}(\frac{\epsilon}{k}).\]
+    \[p_i(\epsilon) \geq f(\epsilon) := (1-\epsilon)^{i-1}(\frac{\epsilon}{k}).\]
 
-    For \(i \geq 2\), \(p\) is concave (need a proof of this), so we can find the maximal probability by setting the derivative to 0.
+    This comes from the fact that the optimal trajectory can be achieved by playing the greedy option \(i-1\) times, and then choosing the exploratory option and choosing the action that reaches the correct state, which has probability \(\frac{\epsilon}{k}\).
 
-    \[p'(\epsilon) = 0\]
+    For \(i \geq 2\), \(f\) is concave, so we can find the maximal probability by setting the derivative to 0.
+
+    \begin{note}[]
+        \color{red}
+        Will need a prove on why this is concave.
+    \end{note}
+
+    \[p_i'(\epsilon) = 0\]
+    \[\Rightarrow \frac{(1 - \epsilon)^{i-1}}{k} - (i-1)(1-\epsilon)^{i-2}(\frac{\epsilon}{k}) = 0\]
     \[\Rightarrow \frac{(1-\epsilon)^{i-1}}{k} = (i-1)(1-\epsilon)^{i-2}(\frac{\epsilon}{k})\]
     \[\frac{1-\epsilon}{k} = (i-1)(\frac{\epsilon}{k}) \Rightarrow \epsilon = \frac{1}{i}.\]
 
-    So for \(\mathcal{M}_i\), \(p\) is bounded below by
+    By plugging in this value for \(\epsilon\) in \(f\) for \(\mathcal{M}_i\), \(p\) is bounded below by
     \[(1 - \frac{1}{i})^{i-1}\frac{1}{ki}.\]
 
     So the expected number of episodes to reach the optimal policy for \(\mathcal{M}_i\) is
@@ -108,7 +118,7 @@
 \begin{proof}[Proof]
     Using a similar setup as the above proof, we now consider using the probability for achieving an optimal policy:
 
-    \[p(\epsilon) = {i-1 \choose 0} (1-\epsilon)^{i-1}(\frac{\epsilon}{k}) + {i-1 \choose 1}(1-\epsilon)^{i-2}(\frac{\epsilon}{k})^2 + \ldots + {i-1 \choose i-1} (\frac{\epsilon}{k})^j\]
+    \[p(\epsilon) \geq f(\epsilon) := {i-1 \choose 0} (1-\epsilon)^{i-1}(\frac{\epsilon}{k}) + {i-1 \choose 1}(1-\epsilon)^{i-2}(\frac{\epsilon}{k})^2 + \ldots + {i-1 \choose i-1} (\frac{\epsilon}{k})^j\]
     \[= (\frac{\epsilon}{k})\sum_{j=0}^{i-1}{i-1 \choose j} (1-\epsilon)^{i-1-j}(\frac{\epsilon}{k})^{j}\]
     \[= (\frac{\epsilon}{k})(1-\epsilon + \frac{\epsilon}{k})^{i-1}.\]
 
