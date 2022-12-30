@@ -13,6 +13,8 @@
 \usepackage{xifthen}
 \usepackage{transparent}
 \usepackage[]{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
@@ -122,20 +124,29 @@ We first consider the case of using curriculum learning on an MDP with determini
     \[= (\frac{\epsilon}{k})\sum_{j=0}^{i-1}{i-1 \choose j} (1-\epsilon)^{i-1-j}(\frac{\epsilon}{k})^{j}\]
     \[= (\frac{\epsilon}{k})(1-\epsilon + \frac{\epsilon}{k})^{i-1}.\]
 
-    Note that this is concave on \((0, 1)\) (proof needed).
+    Note that this is concave on \((0, 1)\).
+    \begin{note}[]
+        \color{red}
+        Proof of concavity needed.
+    \end{note}
 
-    Since it is concave, we can set derivative to 0 to find the \(\epsilon\) that maximizes the probability.
+    Since it is concave, we can set the derivative to 0 to find the \(\epsilon\) that maximizes \(f\). We have
+    \[f'(\epsilon) = \frac{(1-\epsilon + \frac{\epsilon}{k})^{i-1}}{k} + (\frac{\epsilon}{k}) (i-1) (1 - \epsilon + \frac{\epsilon}{k})^{i-2}(\frac{1}{k} - 1) = 0\]
+    \[\Rightarrow \frac{(1 - \epsilon + \frac{\epsilon}{k})^{i-1}}{k} = (1-i)(\frac{\epsilon}{k})(\frac{1}{k} - 1)(1 - \epsilon + \frac{\epsilon}{k})^{i-2}\]
+    \[\Rightarrow (1 - \epsilon + \frac{\epsilon}{k})^{i-1} = \epsilon (1-i) (\frac{1}{k} - 1) (1 - \epsilon+ \frac{\epsilon}{k})^{i-2}\]
+    \[\Rightarrow 1 - \epsilon + \frac{\epsilon}{k} = \epsilon (1-i) (\frac{1}{k} - 1)\]
+    \[\Rightarrow 1 - \epsilon + \frac{\epsilon}{k} = \frac{\epsilon}{k} - \epsilon + \frac{\epsilon i}{k} + i \epsilon\]
+    \[\Rightarrow 1 = \epsilon(i - \frac{i}{k})\]
+    \[\Rightarrow \epsilon = \frac{1}{i - \frac{i}{k}} = \frac{k}{i(k-1)}\]
 
-    We get that
-    \[\epsilon = \frac{k}{i(k-1)}\]
+    We then plug this value of \(\epsilon\) back into \(f\) to get the maximal point of \(f\):
+    \[(\frac{\frac{k}{i(k-1)}}{k})(1 - \frac{k}{i(k-1)} + \frac{\frac{k}{i(k-1)}}{k})^{i-1} = \frac{1}{i(k-1)}(1 - \frac{k-1}{i(k-1)}) = \frac{1 - \frac{1}{i}}{i(k-1)}\]
+    and take the reciporocal to get the expected number of episodes for \(\mathcal{M}_i\), which is
+    \[\frac{i(k-1)}{1 - \frac{1}{i}} = \frac{i^2(k-1)}{i-1}\].
 
-    We then plug back into \(p\) and take the reciporocal to get the expected number of episodes for \(\mathcal{M}_i\), which is
-
-    \[\frac{i^2(k-1)}{i-1}\].
-
-    Note that \(x \leq \frac{x^2}{x-1} \leq 4x\)
-
-    so this also leads to a bound of \(O(kH^2)\) if we sum across all \(1 \leq i \leq H\).
+    Note that \(x \leq \frac{x^2}{x-1} \leq 4x\), so since \(2 \leq i \leq H\) we get that
+    \[\sum_{j = 2}^H \frac{j^2 (k-1)}{j-1} = (k-1 \sum_{j=2}^H \frac{j^2}{j-1})\]
+    which is \(O(kH^2)\).
 
     To prove this is a tight bound, we can show that the probability given by \(p(\epsilon)\) is a tight lower bound to the actual probability.
 \end{proof}
@@ -153,27 +164,10 @@ We first consider the case of using curriculum learning on an MDP with determini
     will find an optimal policy with probability \(1 - \delta\) in at least \(x\) episodes.
 \end{prop}
 
-\begin{proof}[Proof]
-    Let \(s_0, s_1, \ldots, s_H = g\) be a trajectory that the optimal policy for \(\mathcal{M}\) takes.
-    Construct \(\mathcal{M}_i\) such that \(R_i(s, a) = \mathcal{X}(s = s_i)\) and \(P_i(s_i | s_i, a) = 1 \; \forall a \in A\), otherwise \(P_i = P\).
-
-    Then for each \(\mathcal{M}_i\), the probability that the \(\epsilon\)-greedy algorithm will achieve the optimal policy is
-
-    \[p(\epsilon) = {i-1 \choose 0} (1-\epsilon)^{i-1}(\frac{\epsilon}{k}) + {i-1 \choose 1}(1-\epsilon)^{i-2}(\frac{\epsilon}{k})^2 + \ldots + {i-1 \choose i-1} (\frac{\epsilon}{k})^j\]
-    \[= (\frac{\epsilon}{k})\sum_{j=0}^{i-1}{i-1 \choose j} (1-\epsilon)^{i-1-j}(\frac{\epsilon}{k})^{j}\]
-    \[= (\frac{\epsilon}{k})(1-\epsilon + \frac{\epsilon}{k})^{i-1}.\]
-
-    For \(i \geq 2\), \(p\) is concave (need a proof of this), so we can find the maximal probability by setting the derivative to 0.
-
-    \[p'(\epsilon^*) = 0\]
-    \[\Rightarrow \frac{(1-\epsilon^* + \frac{\epsilon^*}{k})^{i-1}}{k} + (\frac{\epsilon^*}{k})(i-1)(1 - \epsilon^* + \frac{\epsilon^*}{k})^{i-2}(\frac{1}{k}-1) = 0\]
-    \[\Rightarrow \epsilon^* = \frac{k}{i(k-1)}\]
-
-    So for \(\mathcal{M}_i\), the probability of reaching the optimal policy in each episode is
-    \[p_i(\epsilon^*) = (\frac{\frac{k}{i(k-1)}}{k})(1 - \frac{k}{i(k-1)} + \frac{\frac{k}{i(k-1)}}{k})^{i-1}\]
-    \[= \frac{i-1}{i^2(k-1)}\]
-
-\end{proof}
+\begin{note}[]
+    \color{red}
+    TODO: Prove this theorem (same as above but finding the number of episodes to get an optimal policy with high probability).
+\end{note}
 
 \section{Curriculum Learning with Model-Based algorithms}
 
@@ -186,6 +180,39 @@ We start with an episodic nonstationery MDP \(M = (\mathcal{S}, \mathcal{A}, H, 
 \begin{defn}[\(M_L\)]
     Let \(M\) and \(L\) be defined as above. We define \(M_L\) as a MDP with the same states and actions as \(M\), and with the same rewards and transitions for \((s, a, h) \notin L\). For \((s, a, h) \in L\), the the reward will be equal to \(R_{max}\) and the transition will lead to an absorbing state that always gives reward \(R_{max}\).
 \end{defn}
+
+We first describe the RMAX algorithm for MDP's:
+
+\begin{algorithm}[H]
+\caption{R-max for MDP's}
+\begin{algorithmic}[1]
+    \Require MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho), \epsilon > 0, 0 \leq\delta \leq 1, R_{max} > 0\).
+    \Procedure{R-max}{$M, \epsilon, \delta, R_{max}$}
+        \State $Rewards[S][A][H]$ be a new array.
+        \State $Transitions[S][A][H]$ be a new array.
+        \State $Known[S][A][H]$ be a new array.
+        \State $L \gets \mathcal{S} \times \mathcal{A} \times [H]$
+        \State $M_{curr} \gets M_L$
+        \For{$i = 1, \ldots, S*A*H$}
+            \While{No new entry is known and the current policy has not been run for more than $K_2$ steps}
+                \State Obtain trajectories by running the optimal policy for \(M_{curr}\) on \(M\).
+                \If{a state $(s, a, h)$ has been visited more than $K_1$ times}
+                    \State Mark \((s, a, h)\) as known
+                    \State Set the estimated transition probabilities and rewards based on the average of the observed transitions and rewards for \((s, a, h)\).
+                    \State Replace the transition dynamics and reward in \((s, a, h)\) in \(M_{curr}\) by the new estimated dynamics.
+                \EndIf
+            \EndWhile
+        \EndFor
+        \State \textbf{Return} The optimal policy for \(M_{curr}\)
+
+    \EndProcedure
+    
+\end{algorithmic}
+\end{algorithm}
+
+\begin{rmk}[Is this curriculum learning?]
+    Notice that this algorithm appears similar to curriculum learning. However there are some differences. In curriculum learning, the algorithm is given a sequence of tasks and trains an agent on the current task by using a (near)-optimal policy for the previous task. So given a sequence of MDP's \(M_1, \ldots, M_n\) you explore \(M_j\) with the aid of the policy \(\pi_{j-1}\). However, in the R-max algorithm we are exploring \(M\) directly using \(\pi_j\).
+\end{rmk}
 
 The RMAX algorithm works by starting with \(L_0 = \mathcal{S} \times \mathcal{A}\), and using the optimal policy for \(M_{L_0}\) on \(M\). Once enough samples have been collected from a state-action pair \((s, a, h)\), it is removed from \(L_0\) to get \(L_1 = L_0 \setminus \{(s, a, h)\}\), and then using the optimal policy for \(M_{L_1}\). This is done until there are no unknown states left (i.e., \(L\) is empty).
 
