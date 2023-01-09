@@ -175,11 +175,7 @@ Given a model-based reinforcement learning algorithm (such as RMAX or UCB), we w
 
 \subsection{RMAX}
 
-We start with an episodic nonstationery MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho)\). Let \(L\) be a collection of states and actions \(L \subset \mathcal{S} \times \mathcal{A} \times [H]\) corresponding to the set of states marked unknown in the RMAX algorithm.
-
-\begin{defn}[\(M_L\)]
-    Let \(M\) and \(L\) be defined as above. We define \(M_L\) as a MDP with the same states and actions as \(M\), and with the same rewards and transitions for \((s, a, h) \notin L\). For \((s, a, h) \in L\), the the reward will be equal to \(R_{max}\) and the transition will lead to an absorbing state that always gives reward \(R_{max}\).
-\end{defn}
+We start with an episodic nonstationery MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho)\). The R-max algorithm works by encouraging exploration on "unknown" states by setting the reward for those states to a maximal value \(R_{max}\).
 
 \subsubsection{Original R-Max Algorithm}
 
@@ -187,50 +183,99 @@ We first describe the RMAX algorithm for MDP's:
 
 \begin{algorithm}[H]
 \caption{R-max for MDP's}
+\label{alg:rmax}
 \begin{algorithmic}[1]
     \Require MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho), \epsilon > 0, 0 \leq\delta \leq 1, R_{max} > 0\).
-    \Procedure{R-max}{$M, \epsilon, \delta, R_{max}$}
+    \Procedure{R-max}{$M, \epsilon, \delta, R_{max}, K_1, K_2$}
         \State $Rewards[S][A][H]$ be a new array.
         \State $Transitions[S][A][H]$ be a new array.
         \State $Known[S][A][H]$ be a new array.
-        \State $L \gets \mathcal{S} \times \mathcal{A} \times [H]$
-        \State $M_{curr} \gets M_L$
-        \For{$i = 1, \ldots, S*A*H$}
-            \While{No new entry is known and the current policy has not been run for more than $K_2$ steps}
-                \State Obtain trajectories by running the optimal policy for \(M_{curr}\) on \(M\).
-                \If{a state $(s, a, h)$ has been visited more than $K_1$ times}
-                    \State Mark \((s, a, h)\) as known
-                    \State Set the estimated transition probabilities and rewards based on the average of the observed transitions and rewards for \((s, a, h)\).
-                    \State Replace the transition dynamics and reward in \((s, a, h)\) in \(M_{curr}\) by the new estimated dynamics.
+        \State $\hat{M} \gets M$ with all states replaced by absorbing states with reward \(R_{max}\) for any action.
+        \State \(Done \gets False\)
+        \While{not $Done$}
+            \State \(Done \gets True\)
+            \State \(\pi \gets \) optimal policy for \(\hat{M}\)
+            \While{$\pi$ has not been run for more than $K_1$ steps}
+                \State obtain trajectories by running \(\pi\) on \(M\).
+                \If{a state $(s, a, h)$ has been visited more than $K_2$ times and $Known[s][a][h]$ is false}
+                    \State \(Known[s][a][h] \gets True\)
+                    \State set the estimated transition probabilities \(Transitions[s][a][h]\) and rewards \(Rewards[s][a][h]\) based on the average of the observed transitions and rewards for \((s, a, h)\)
+                    \State replace the transition probabilities and reward in \((s, a, h)\) in \(\hat{M}\) by the estimated values \(Transitions[s][a][h]\) and \(Rewards[s][a][h]\)
+                    \State \(Done \gets False\)
+                    \State \textbf{break}
                 \EndIf
             \EndWhile
-        \EndFor
-        \State \textbf{Return} The optimal policy for \(M_{curr}\)
+        \EndWhile
+        \State \textbf{return} The optimal policy for \(\hat{M}\)
 
     \EndProcedure
     
 \end{algorithmic}
 \end{algorithm}
 
-\begin{rmk}[Is this curriculum learning?]
-    Notice that this algorithm appears similar to curriculum learning. However there are some differences. In curriculum learning, the algorithm is given a sequence of tasks and trains an agent on the current task by using a (near)-optimal policy for the previous task. So given a sequence of MDP's \(M_1, \ldots, M_n\) you explore \(M_j\) with the aid of the policy \(\pi_{j-1}\). However, in the R-max algorithm we are exploring \(M\) directly using \(\pi_j\).
-\end{rmk}
-
-The RMAX algorithm works by starting with \(L_0 = \mathcal{S} \times \mathcal{A}\), and using the optimal policy for \(M_{L_0}\) on \(M\). Once enough samples have been collected from a state-action pair \((s, a, h)\), it is removed from \(L_0\) to get \(L_1 = L_0 \setminus \{(s, a, h)\}\), and then using the optimal policy for \(M_{L_1}\). This is done until there are no unknown states left (i.e., \(L\) is empty).
-
-So we have
-\[\mathcal{S} \times \mathcal{A} \times [H] = L_0 \supset L_1 \supset \ldots \supset L_{SAH} = \emptyset\]
-
-We will also denote \(M_{L_j}\) as \(M_j\).
-
 \begin{note}[]
     \color{red}
     In the original R-max algorithm, the optimal policy for each \(M_j\) is not used since \(M_j\) is not know fully. Instead, the optimal policy for the estimated MDP for \(M_j\), which is based on the samples collected previously, is used.
 \end{note}
 
+\begin{rmk}[Is this curriculum learning?]
+    Notice that this algorithm appears similar to curriculum learning. However there are some differences. In curriculum learning, the algorithm is given a sequence of tasks and trains an agent on the current task by using a (near)-optimal policy for the previous task. So given a sequence of MDP's \(M_1, \ldots, M_n\) you explore \(M_j\) with the aid of the policy \(\pi_{j-1}\). However, in the R-max algorithm we are exploring \(M\) directly using \(\pi_j\).
+\end{rmk}
+
 \subsubsection{R-max Algorithm with Curriculum Learning}
 
-We first prove some preliminary results.
+We first introduce some definitions. Define \(\mathcal{L} = \mathcal{P}(\mathcal{S} \times [H])\) to be the set of all possible sets of (nonstationery) states.
+
+\begin{defn}[]
+    Let \(M\) be a nonstationery finite horizon MDP as defined above and let \(L \in \mathcal{L}\). Define the MDP \underline{\(M_L\)} to be the MDP with the same states and actions as \(M\), and with the same rewards for all actions for all states \((s, h) \notin L\). For \((s, h) \in L\), the state is an absorbing state and the reward is set to \(R_{max}\) for all actions.
+\end{defn}
+
+We now introduce the curriculum learning algorithm utilizing the exploration principles of the R-max algorithm. For simplicity, we assume that the starting state for \(M\), \(s_0\) is fixed: \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, s_0)\). We also assume that we have access to the MDP \(M_L\) for all \(L \in \mathcal{L}\).
+
+\begin{algorithm}[H]
+    \caption{Curriculum Learning with R-max}
+    \label{alg:curr_rmax}
+\begin{algorithmic}[1]
+    \Require MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, s_0), \epsilon > 0, 0 \leq\delta \leq 1, R_{max} > 0, \mathcal{M} = \{M_L : L \in \mathcal{L}\}\).
+    \Procedure{Curriculum\_R-max}{$M, \epsilon, \delta, R_{max}, \mathcal{M}, K_1, K_2, K_3$}
+        \State \(\hat{M} \gets M_{\mathcal{S} \times [H]}\)
+        \State $L \gets \mathcal{S} \times ([H] \setminus 1)$ (since the starting state is fixed)
+        \State $M_{1} \gets M_L$
+        \State $\pi_0 \gets $ random policy
+        \State $i \gets 1$
+        \State $\Phi \gets \{\pi_0\}$
+        \State $(s, h) \gets (s_0, 1)$
+        \State \(Done \gets False\)
+        \While{not $Done$}
+            \State \(Done \gets True\)
+            \State \(\Phi \gets \Phi \cup \{\text{optimal policy for } \hat{M}\}\)
+            \State \(\pi \gets \) choose policy from \(\Phi\) at random and then play it using \(\epsilon\)-greedy.
+            \While{$\pi$ has not been run $K_1$ times}
+                \State run \(\pi\) on \(M_i\)
+                \If{$(s, h)$ has been reached $K_2$ times and some new state $(s', h') \in L$ has been reached $K_3$ times}
+                    \State replace the transition probabilities of \((s, h)\) in \(\hat{M}\) with the estimates from the samples collected for \((s, h)\).
+                    \State \(L \gets L \setminus (s', h')\)
+                    \State \(M_{i+1} \gets M_{L}\)
+                    \State \((s, h) \gets (s', h')\)
+                    \State \(i \gets i+1\)
+                    \State \(Done \gets False\)
+                    \State \textbf{break}
+                \EndIf
+            \EndWhile
+        \EndWhile
+        \State \textbf{return} optimal policy for \(\hat{M}\)
+
+    \EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+We now introduce the main theoretical guarantee for the above algorithm.
+
+\begin{thm}[]
+    Given a nonstationery finite horizon MDP \(M\) with fixed initial state, an \(\epsilon > 0\), a \(0 \leq \delta \leq 1\), the maximum reward for \(M\), \(R_{max}\) and the \(\mathcal{M}\) corresponding to \(M\), running algorithm \ref{alg:curr_rmax} with \(K_1, K_2, K_3\), the algorithm will output an \(\epsilon\)-optimal policy with probability \(1 - \delta\). Furthermore, the sample complexity of the algorithm is \(\_\).
+\end{thm}
+
+We start off with some preliminary results about estimating and MDP.
 
 \begin{thm}[]
     Let \(M\) be a MDP and let \(M'\) be another MDP such that \(||P_{M} - P_{M'}||_{\infty} < \frac{\epsilon}{SH^2R_{max}}\). Then for all policies \(\pi\),
@@ -254,45 +299,17 @@ We first prove some preliminary results.
     \[\Rightarrow n \geq \frac{-\ln(\frac{\delta}{2S})}{2\epsilon^2}.\]
 \end{proof}
 
+\begin{lemma}[Justification for \(K_2\)]
+    
+\end{lemma}
 
+\begin{lemma}[Justification for \(K_3\)]
+    
+\end{lemma}
 
-The curriculum learning algorithm utilizing R-max is as follows:
-
-\begin{algorithm}[H]
-    \caption{Curriculum Learning with R-max}
-\begin{algorithmic}[1]
-    \Require MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, \rho), \epsilon > 0, 0 \leq\delta \leq 1, R_{max} > 0\).
-    \Procedure{Curriculum\_R-max}{$M, \epsilon, \delta, R_{max}$}
-        \State $L \gets \mathcal{S} \times \mathcal{A} \times [H]$
-        \State $M_{1} \gets M_L$
-        \State \(\hat{M} \gets M_L\)
-        \State $\pi_{1} \gets$ optimal policy for \(\hat{M}\)
-        \State $i \gets 1$
-        \While{Running $\pi_{i}$ on $M$ explores a state in \(L\) with probability higher than \(\frac{\alpha}{H*R_{max}}\)}
-            \State $(s, a, h) \gets$ the state in \(L\) with the highest probability of being reached by running \(\pi_{i}\) on \(M_i\).
-            \State \(L \gets L \setminus \{(s, a, h)\}\)
-            \State $M_{i+1} \gets M_L$
-            \State Run \(\pi_i\) and \(\epsilon\)-greedy on \(M_{i+1}\) until \(K_1\) trajectories passing through \((s, a, h)\) are collected.
-            \State Update the reward and transitions for \((s, a, h)\) in \(\hat{M}\) based on the average values of the samples collected.
-            \State \(\pi_{i+1} \gets\) optimal policy for \(\hat{M}\)
-            \State \(i \gets i+1\)
-        \EndWhile
-        \State \textbf{Return} \(\pi_i\)
-
-    \EndProcedure
-\end{algorithmic}
-\end{algorithm}
-
-\begin{note}[]
-    \color{red}
-    Line 10 requires us to know the transition probabilities beforehand, which makes the problem of solving the MDP trivial. But if we don't know the MDP beforehand then we can't use curriculum learning because we wouldn't be able to create a sequence of MDP's from scratch.
-\end{note}
-
-\begin{thm}[]
-    Fix \(0 < \delta < 1, \epsilon > 0\). Then we can find an \(\epsilon\)-optimal policy with probability higher than \(1 - \delta\) by running the above algorithm with \(K_1 = \frac{-ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2}\) and \(\alpha < \frac{\epsilon}{SH^2 R_{max}}\).
-
-    Furthermore, the sample complexity of the algorithm is TBD.
-\end{thm}
+\begin{lemma}[Justification for \(K_1\)]
+    
+\end{lemma}
 
 
 \begin{lemma}[]
@@ -333,33 +350,6 @@ The curriculum learning algorithm utilizing R-max is as follows:
     Which is the same statement as (1).
 \end{proof}
 
-We will now prove a bound on the number of samples needed in line 11 in the above algorithm.
-
-\begin{lemma}[]
-    Line 11 in the above algorithm will require (with probability \(1-\delta\)) less than TBD samples.
-\end{lemma}
-
-\begin{proof}[Proof]
-    Fix \(i\) from the algorithm and consider \(\pi_i\) and \(M\). By line 7, the probability of exploring a state in \(L\) when running \(\pi_i\) on \(M\) is greater than \(\frac{\alpha}{HR_{max}}\). Since \(M_{i+1}\) is the same as \(M\) but with some states in \(L\) replaced by absorbing states, we must also have that the probability of exploring a state \(L\) when running \(\pi_i\) on \(M_{i+1}\) is \(\geq \frac{\alpha}{HR_{max}}\).
-
-    Since we choose \((s, a, h)\) to be the state in \(L\) with the highest probability of being reached by running \(\pi_i\) on \(M_i\), by the pigeonhole principle the probability of reaching \((s, a, h)\) when running \(\pi_i\) on \(M_{i+1}\) is \(\leq \frac{1}{SAH} \frac{\alpha}{HR_{max}} = \frac{\alpha}{SAH^2 R_{max}}\).
-
-    Let \(n\) be the number of trajectories we collect and let \(X_i\) be an indicator random variable that is 1 if the \(i\)th trajectory reaches \((s, a, h)\) and 0 otherwise. Let \(S = x_1 + \ldots + x_n\). Then we want
-    \[P(S \geq K_1) \geq 1 - \delta\]
-    \[\Rightarrow \sum_{i=0}^{K_1-1} {n \choose i} (\frac{\alpha}{SAH^2 R_{max}})^{i} (1 - \frac{\alpha}{SAH^{2} R_{max}})^{n-i} \geq 1-\delta\]
-    We can then solve for \(\delta\) or use some concentration inequality.
-
-
-    % By the Chernoff bound and the fact that \(S\) is a binomial distribution with moment generating function \(M_S(t) = (q + pe^t)^n\) where \(p = \frac{\alpha}{SAH^2 R_{max}}\) and \(q = 1-p\) we have that
-    % \[P(S \geq K_1) \leq \]
-\end{proof}
-
-
-\begin{proof}[Proof (of Theorem)]
-    Follows from previous lemmas.
-\end{proof}
-
-\subsection{UCRL}
 
 
 
