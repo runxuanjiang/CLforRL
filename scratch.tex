@@ -236,38 +236,31 @@ We now introduce the curriculum learning algorithm utilizing the exploration pri
     \caption{Curriculum Learning with R-max}
     \label{alg:curr_rmax}
 \begin{algorithmic}[1]
-    \Require MDP \(M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, s_0), \epsilon > 0, 0 \leq\delta \leq 1, R_{max} > 0, \mathcal{M} = \{M_L : L \in \mathcal{L}\}\).
-    \Procedure{Curriculum\_R-max}{$M, \epsilon, \delta, R_{max}, \mathcal{M}, K_1, K_2, K_3$}
-        \State \(\hat{M} \gets M_{\mathcal{S} \times [H]}\)
-        \State $L \gets \mathcal{S} \times ([H] \setminus 1)$ (since the starting state is fixed)
-        \State $M_{1} \gets M_L$
-        \State $\pi_0 \gets $ random policy
-        \State $i \gets 1$
-        \State $\Phi \gets \{\pi_0\}$
-        \State $(s, h) \gets (s_0, 1)$
-        \State \(Done \gets False\)
-        \While{not $Done$}
-            \State \(Done \gets True\)
-            \State \(\Phi \gets \Phi \cup \{\text{optimal policy for } \hat{M}\}\)
-            \State \(\pi \gets \) choose policy from \(\Phi\) at random and then play it using \(\epsilon\)-greedy.
-            \While{$\pi$ has not been run $K_1$ times}
-                \State run \(\pi\) on \(M_i\)
-                \If{$(s, h)$ has been reached $K_2$ times and some new state $(s', h') \in L$ has been reached $K_3$ times}
-                    \State replace the transition probabilities of \((s, h)\) in \(\hat{M}\) with the estimates from the samples collected for \((s, h)\).
-                    \State \(L \gets L \setminus (s', h')\)
-                    \State \(M_{i+1} \gets M_{L}\)
-                    \State \((s, h) \gets (s', h')\)
-                    \State \(i \gets i+1\)
-                    \State \(Done \gets False\)
-                    \State \textbf{break}
-                \EndIf
-            \EndWhile
+    \Require MDP $M = (\mathcal{S}, \mathcal{A}, H, \mathbb{P}, R, s_0)$, $\epsilon > 0$, $\delta \leq 1$, $R_{max} > 0$ and $\mathcal{M} = \{M_L: L \in \mathcal{L}\}$.
+    \State Initialize $L_0 = (\mathcal{S} \times [H]) \setminus \{(s_0, 1)\}$; $M_0 = M_{L_0}$; $\Phi_0 = \{\bar\pi_0\}$ for $\bar\pi_0$ being uniformly random policy; $(\bar s_0, \bar h_0) = (s_0, 1)$.
+    \For{$t = 1, \dots, S \times H$}
+        \State Let $\pi_t =$ mixture of $\Phi_{t-1}$ with $\epsilon$-greedy exploration.
+        \State $\mathcal{H}_t = \{\}$.
+        \While{True}
+            \State Run $\pi_t$ on $M_{t-1}$ and add the trajectory to $\mathcal{H}_t$.
+            \If{$N_{\bar s, \bar h}(\mathcal{H}) \geq K_3$ for all $(s, h \in (\mathcal{S} \times [H]) \setminus L_{t-1})$}
+                \State \textbf{break}
+            \EndIf
         \EndWhile
-        \State \textbf{return} optimal policy for \(\hat{M}\)
-
-    \EndProcedure
+        \State Call offline policy optimization on $\mathcal{H}_t$ that returns $\bar \pi_{t}$, a near-optimal policy for $M_{t-1}$.
+        \State {If \# $\bar \pi_t$ will visit some $s, h \in L_{t-1}$ with the highest probability. Set this $s, h$ to be $\bar s_t, \bar h_t$. Otherwise, terminate}
+        % \If{$i = K_1$}
+        %     \State Output $\bar \pi_t$; BREAK \quad              \textit{\# Found a near-optimal policy}
+        % \EndIf
+        \State $\Phi_t = \Phi_{t-1} \cup \{\bar \pi_{t-1}\}$.
+        %\State Run $\pi_t$ on $M_{t-1}$ until some state $(\bar s_t, \bar h_t) \in L_{t-1}$ is visited $K_3$ times and $(\bar s_{t-1}, \bar h_{t-1})$ is visited $K_2$ times. The trajectories are stored in $\mathcal{H}_t$.
+        \State $L_t = L_{t-1} / (\bar s_t, \bar h_t)$; $M_t = M_{L_t}$.
+    \EndFor
+    \State Output $\bar \pi_t$.
 \end{algorithmic}
 \end{algorithm}
+
+
 
 We now introduce the main theoretical guarantee for the above algorithm.
 
@@ -286,8 +279,8 @@ We start off with some preliminary results about estimating and MDP.
     Lemma 4 of the R-max paper.
 \end{proof}
 
-\begin{lemma}[]
-    Let \(M\) be an MDP. To approximate the transition probabilility for a state \(s, a, h\) in \(M\) with error less than \(\epsilon\) with probability higher than \(1 - \delta\), we need \(K_1 \geq \frac{-\ln(\delta/2S)}{2\epsilon^2}\) samples.
+\begin{lemma}[Justification for \(K_2\)]
+    Let \(M\) be an MDP. To approximate the transition probabilility for a state \(s, a, h\) in \(M\) with error less than \(\epsilon\) with probability higher than \(1 - \delta\), we need \(n \geq \frac{-\ln(\delta/2S)}{2\epsilon^2}\) samples.
 \end{lemma}
 
 \begin{proof}[Proof]
@@ -299,16 +292,21 @@ We start off with some preliminary results about estimating and MDP.
     \[\Rightarrow n \geq \frac{-\ln(\frac{\delta}{2S})}{2\epsilon^2}.\]
 \end{proof}
 
-\begin{lemma}[Justification for \(K_2\)]
+\begin{lemma}[]
+    Let \(\pi\) be the policy defined in line 13 of algorithm \ref{alg:curr_rmax}. Then either \(\pi\) has a probability of accessing a state in \(L\) with probability \(\_\) or the current optimal policy for \(\hat{M}\) is already \(\_\)-optimal for \(M\).
+\end{lemma}
+
+\begin{lemma}[Justification for \(K_{1, 1}\) and \(K_3\)]
+    Let \(\pi\) be the policy defined in line 13 of algorithm \ref{alg:curr_rmax}. Then we must run \(\pi\) on \(M_i\) for at least \(K_1 = \_\) trajectories to ensure that the following is true:
+    \begin{itemize}
+        \item If no state \((s', h')\) has been reached \(K_3\) times then there is \(1 - \delta\) probability that the current policy for \(\hat{M}\) is optimal for \(M\).
+        \item If a state \((s', h')\) has been reached more than \(K_3\) times then there is \(1 - \delta\) probability that the probability of reaching that state using \(\pi\) on \(M_i\) is at least \(\_\).
+    \end{itemize}
     
 \end{lemma}
 
-\begin{lemma}[Justification for \(K_3\)]
-    
-\end{lemma}
-
-\begin{lemma}[Justification for \(K_1\)]
-    
+\begin{lemma}[Justification for \(K_{1, 2}\)]
+    By running the loop in line 14 of algorithm \ref{alg:curr_rmax} \(K_{1, 2} = \_\) times we guarantee with probability \(1 - \delta\) that the state \((s, h)\) will be reached \(K_2\) times in \(M_i\).
 \end{lemma}
 
 
