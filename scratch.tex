@@ -241,14 +241,18 @@ We now introduce the curriculum learning algorithm utilizing the exploration pri
     \For{$t = 1, \dots, S \times H$}
         \State Let $\pi_t =$ mixture of $\Phi_{t-1}$ with $\epsilon$-greedy exploration.
         \State $\mathcal{H}_t = \{\}$.
-        \While{True}
+        \For{$i = 1, \ldots, K_1$}
             \State Run $\pi_t$ on $M_{t-1}$ and add the trajectory to $\mathcal{H}_t$.
-            \If{$N_{\bar s, \bar h}(\mathcal{H}) \geq K_3$ for all $(s, h \in (\mathcal{S} \times [H]) \setminus L_{t-1})$}
-                \State \textbf{break}
-            \EndIf
-        \EndWhile
+            % \If{$N_{\bar s, \bar h}(\mathcal{H}) \geq K_3$ for all $(s, h \in (\mathcal{S} \times [H]) \setminus L_{t-1})$}
+            %     \State \textbf{break}
+            % \EndIf
+        \EndFor
         \State Call offline policy optimization on $\mathcal{H}_t$ that returns $\bar \pi_{t}$, a near-optimal policy for $M_{t-1}$.
-        \State {If \# $\bar \pi_t$ will visit some $s, h \in L_{t-1}$ with the highest probability. Set this $s, h$ to be $\bar s_t, \bar h_t$. Otherwise, terminate}
+        \If {\# $\bar \pi_t$ will visit $L_{t-1}$ with probability at least $p$.}
+            \State Set  $\bar s_t, \bar h_t$ to be the state in \(L\) with the highest probability of being reached.
+        \Else
+            \State \textbf{break}
+        \EndIf
         % \If{$i = K_1$}
         %     \State Output $\bar \pi_t$; BREAK \quad              \textit{\# Found a near-optimal policy}
         % \EndIf
@@ -260,15 +264,13 @@ We now introduce the curriculum learning algorithm utilizing the exploration pri
 \end{algorithmic}
 \end{algorithm}
 
-
-
 We now introduce the main theoretical guarantee for the above algorithm.
 
 \begin{thm}[]
-    Given a nonstationery finite horizon MDP \(M\) with fixed initial state, an \(\epsilon > 0\), a \(0 \leq \delta \leq 1\), the maximum reward for \(M\), \(R_{max}\) and the \(\mathcal{M}\) corresponding to \(M\), running algorithm \ref{alg:curr_rmax} with \(K_1, K_2, K_3\), the algorithm will output an \(\epsilon\)-optimal policy with probability \(1 - \delta\). Furthermore, the sample complexity of the algorithm is \(\_\).
+    Given a nonstationery finite horizon MDP \(M\) with fixed initial state, an \(\epsilon > 0\), a \(0 \leq \delta \leq 1\), the maximum reward for \(M\), \(R_{max}\) and the \(\mathcal{M}\) corresponding to \(M\), then running algorithm \ref{alg:curr_rmax} with \(K_1 = \_, K_2 = \_\), the algorithm will output an \(\epsilon\)-optimal policy with probability \(1 - \delta\). Furthermore, the sample complexity of the algorithm is \(\_\).
 \end{thm}
 
-We start off with some preliminary results about estimating and MDP.
+We start off with some preliminary results about estimating and MDP, which will lead to a result justifying \(K_1\) in line 5.
 
 \begin{thm}[]
     Let \(M\) be a MDP and let \(M'\) be another MDP such that \(||P_{M} - P_{M'}||_{\infty} < \frac{\epsilon}{SH^2R_{max}}\). Then for all policies \(\pi\),
@@ -279,7 +281,7 @@ We start off with some preliminary results about estimating and MDP.
     Lemma 4 of the R-max paper.
 \end{proof}
 
-\begin{lemma}[Justification for \(K_2\)]
+\begin{lemma}[]
     Let \(M\) be an MDP. To approximate the transition probabilility for a state \(s, a, h\) in \(M\) with error less than \(\epsilon\) with probability higher than \(1 - \delta\), we need \(n \geq \frac{-\ln(\delta/2S)}{2\epsilon^2}\) samples.
 \end{lemma}
 
@@ -292,30 +294,37 @@ We start off with some preliminary results about estimating and MDP.
     \[\Rightarrow n \geq \frac{-\ln(\frac{\delta}{2S})}{2\epsilon^2}.\]
 \end{proof}
 
-\begin{lemma}[]
-    Let \(\pi\) be the policy defined in line 13 of algorithm \ref{alg:curr_rmax}. Then either \(\pi\) has a probability of accessing a state in \(L\) with probability \(\_\) or the current optimal policy for \(\hat{M}\) is already \(\_\)-optimal for \(M\).
+
+\begin{lemma}[Justification for \(K_1\) (loose bound)]
+    Fix \(0 \leq \delta \leq 1\). In order to collect \(n\) samples for each state \((s, h)\) with probability \(1-\delta\) or more, we need to set \(K_1 = nSAH \frac{\ln(1 - \delta^{\frac{1}{nSAH}})}{\ln(\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})}\).
 \end{lemma}
 
-\begin{lemma}[Justification for \(K_{1, 1}\) and \(K_3\)]
-    Let \(\pi\) be the policy defined in line 13 of algorithm \ref{alg:curr_rmax}. Then we must run \(\pi\) on \(M_i\) for at least \(K_1 = \_\) trajectories to ensure that the following is true:
-    \begin{itemize}
-        \item If no state \((s', h')\) has been reached \(K_3\) times then there is \(1 - \delta\) probability that the current policy for \(\hat{M}\) is optimal for \(M\).
-        \item If a state \((s', h')\) has been reached more than \(K_3\) times then there is \(1 - \delta\) probability that the probability of reaching that state using \(\pi\) on \(M_i\) is at least \(\_\).
-    \end{itemize}
+\begin{proof}[Proof]
+    The number of trajectories needed to be collected is upper bounded by the case where \(L\) is empty, so we consider this case only in this proof. We first calculate the probability of the policy \(\pi_t\) from line 6 for reaching any particular state in \((\mathcal{S} \times [H]) \setminus L_t\) and choosing some action in \(\mathcal{A}\). We denote the state to be \((s, h)\) and the action as \(a\). In order to reach \((s, h)\) we must first choose the policy in \(\Phi\) which reaches \((s, h)\) with guaranteed probability. From line 9 and pigeonhole principle, there exists such a policy that reaches \((s, h)\) with probability at least \(\frac{p}{SH}\). Furthermore we have \(|\Phi| \leq SH\). So the probability of reaching \((s, h)\) is at least \(\frac{p(1-\epsilon)^{H}}{SH^2}\). Next, the probability of reaching a particular action from \((s, h)\) is \(\frac{\epsilon}{A}\). Thus, the probability of reaching a specific state and performing a specific action on that state is
+    \[\frac{\epsilon (1-\epsilon)^{H}}{SAH^2}.\]
+    We want to visit each state and action \(n\) times. In this case this is equivalent to visiting \((s, h)\) and performing action \(a\) \(nSAH\) times. Let \(k\) be the proposed number of trajectories to collect. Let \(X_i, 1 \leq i \leq k\) be a Bernoulli random variable that corresponds to a trajectory visiting \((s, h)\) and performing action \(a\) on it. Then we have
+    \[P(\sum_{i=1}^{k} X_i \geq nSAH) \geq \prod_{j=1}^{nSAH} P(\sum_{i=1}^{\frac{k}{nSAH}} X_{j*i} \geq 1)\]
+    \[= \prod_{j=1}^{nSAH} (1 - P(\sum_{i=1}^{\frac{k}{nSAH}} X_{j*i} = 0)\]
+    \[= (1 - (\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})^{\frac{k}{nSAH}})^{nSAH} \geq \delta\]
+    \[\Rightarrow 1 - (\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})^{\frac{k}{nSAH}} \geq \delta^{\frac{1}{nSAH}}\]
+    \[\Rightarrow 1 - \delta^{\frac{1}{nSAH}} \geq (\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})^{\frac{k}{nSAH}}\]
+    \[\Rightarrow \ln(1 - \delta^{\frac{1}{nSAH}}) \geq \frac{k}{nSAH} \ln(\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})\]
+    \[\Rightarrow k \geq nSAH \frac{\ln(1 - \delta^{\frac{1}{nSAH}})}{\ln(\frac{p\epsilon (1-\epsilon)^{H}}{SAH^2})}\]
+\end{proof}
+
+\begin{proof}[Proof (tighter bound using induction)]
     
-\end{lemma}
+\end{proof}
 
-\begin{lemma}[Justification for \(K_{1, 2}\)]
-    By running the loop in line 14 of algorithm \ref{alg:curr_rmax} \(K_{1, 2} = \_\) times we guarantee with probability \(1 - \delta\) that the state \((s, h)\) will be reached \(K_2\) times in \(M_i\).
-\end{lemma}
 
+Next we prove a lemma showing that if the policy in line 9 is not already an optimal policy for the MDP \(M\), then it must have a guaranteed probability of exploring \(L\).
 
 \begin{lemma}[]
-    Let \(\alpha > 0\) and \(1 \leq j \leq SA\). Denote \((s, a, h)\) to be the entry in \(L_{j-1}\) but not in \(L_{j}\). Consider playing the policy \(\pi_{j-1}^*\) with \(\epsilon\)-greedy on \(M_j\). Let \(V_{M}(\pi)\) denote the value function on MDP \(M\) of policy \(\pi\), and let \(V^*_{M}\) be the value of any optimal policy on \(M\). Then either
+    Let \(\alpha > 0\) let \(L \subset \mathcal{S} \times [H]\). Let \(\pi_L\) be an optimal policy for \(M_L\). Let \(V_{M}(\pi)\) denote the value function on MDP \(M\) of policy \(\pi\), and let \(V^*_{M}\) be the value of any optimal policy on \(M\). Then either
 
     \begin{enumerate}
-        \item \(V_{M_j} (\pi_{j-1}) > V^*_{M_j} - \alpha\)
-        \item \((s, a, h)\) will be played with probability of at least \(\frac{\alpha}{H*R_{max}}\).
+        \item \(V_{M} (\pi_L) > V^*_{M} - \alpha\)
+        \item A state in \(L\) will be played with probability of at least \(\frac{\alpha}{H*R_{max}}\) when playing \(\pi_L\) on \(M\) (or \(M_L\)).
     \end{enumerate}
     
 \end{lemma}
@@ -323,29 +332,42 @@ We start off with some preliminary results about estimating and MDP.
 \begin{proof}[Proof]
     This proof follows the proof of lemma 6 in the original R-max paper.
 
-    Suffices to show that if (2) does not hold then (1) holds. Suppose that (2) does not hold. Let \(T\) be the set of all possible trajectories on \(M_{j}\) and let \(T'\) be the set of all trajectories that pass through \((s, a, h)\). Let \(P_M^{\pi}(t)\) denotes the probability that the trajectory \(t\) will be reached when playing policy \(\pi\) on the MDP \(M\).  Since (2) does not hold we have that
-    \[\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) < \frac{\alpha}{H R_{max}}.\]
+    Suffices to show that if (2) does not hold then (1) holds. Suppose that (2) does not hold. Let \(T\) be the set of all possible trajectories on \(M\) and let \(T'\) be the set of all trajectories that pass through \(L\). Let \(P_M^{\pi}(t)\) denotes the probability that the trajectory \(t\) will be reached when playing policy \(\pi\) on the MDP \(M\).  Since (2) does not hold we have that
+    \[\sum_{t \in T'} P_{M}^{\pi_L}(t) < \frac{\alpha}{H R_{max}}.\]
     We want to show that
-    \[V^*_{M_j} - V_{M_j}(\pi_{j-1}) < \alpha.\]
-    Note that the only difference between \(M_j\) and \(M_{j-1}\) is that in \(M_{j-1}\), the state \((s, h)\) is an absorbing state and any action from this state gives a reward of \(R_{max}\), but in \(M_j\) the reward is replaced by the actual reward and the transition probabilities are also replaced by the actual transition probabilities from \(M\). Thus we have
-    \[V^*_{M_j} \leq V^*_{M_{j-1}}.\]
-    \[\Rightarrow V^*_{M_j} - V_{M_j}(\pi_{j-1}) \leq V^*_{M_{j-1}} - V_{M_j}(\pi_{j-1})\]
+    \[V^*_{M} - V_{M}(\pi_L) < \alpha.\]
+    Note that the only differences between \(M\) and \(M_L\) is that in \(M_L\), the states in \(L\) are absorbing states and any action from this state gives a reward of \(R_{max}\), but in \(M\) the reward is replaced by the actual reward and the transition probabilities are also replaced by the actual transition probabilities from \(M\). Thus we have
+    \[V^*_{M} \leq V^*_{M_L}.\]
+    \[\Rightarrow V^*_{M} - V_{M}(\pi_L) \leq V^*_{M_L} - V_{M}(\pi_L)\]
     We now further decompose each of these value functions over all possible trajectories. Let \(V_{M}(t)\) denote the total reward of going through trajectory \(t\) on MDP \(M\). Then we have
-    \[ |V_{M_j}(\pi_{j-1}) - V_{M_{j-1}}^* | = |\sum_{t \in T} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) - \sum_{t \in T} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)|\]
-    \[= |\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) + \sum_{t \in T \setminus T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) - \sum_{t \in T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t) - \sum_{t \in T \setminus T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)\]
-    \[\leq |\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) - \sum_{t \in T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)| + |\sum_{t \in T \setminus T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) -  \sum_{t \in T \setminus T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)|\]
-    Since the rewards and transition probabilities for \(t \in T \setminus T'\) are the same for MDPs \(M_j\) and \(M_{j-1}\), the second expression above is equal to 0. Thus we are left with the first expression
-    \[= |\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) - \sum_{t \in T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)|.\]
-    Finally note that since the probabilities for all states before step \(h\) have the same transition probability for \(M_j\) and \(M_{j-1}\), we have that \(\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) = \sum_{t \in T'} P_{M_{j-1}}^{\pi_{j-1}}(t)\). We also have that \(\forall t, 0 \leq V_{M_j}(t) \leq HR_{max}\) and \(0 \leq V_{M_{j-1}}(t) \leq HR_{max}\). Thus we have
-    \[|\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) V_{M_j}(t) - \sum_{t \in T'} P_{M_{j-1}}^{\pi_{j-1}}(t) V_{M_{j-1}}(t)| \leq \sum_{t \in T'} P_{M_j}^{\pi_{j-1}} H R_{max}.\]
+    \[ |V_{M}(\pi_L) - V_{M_L}^* | = |\sum_{t \in T} P_{M}^{\pi_L}(t) V_{M}(t) - \sum_{t \in T} P_{M_L}^{\pi_L}(t) V_{M_L}(t)|\]
+    \[= |\sum_{t \in T'} P_{M}^{\pi_L}(t) V_{M}(t) + \sum_{t \in T \setminus T'} P_{M}^{\pi_L}(t) V_{M}(t) - \sum_{t \in T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t) - \sum_{t \in T \setminus T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t)|\]
+    \[\leq |\sum_{t \in T'} P_{M}^{\pi_L}(t) V_{M}(t) - \sum_{t \in T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t)| + |\sum_{t \in T \setminus T'} P_{M}^{\pi_L}(t) V_{M}(t) -  \sum_{t \in T \setminus T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t)|\]
+    Since the rewards and transition probabilities for \(t \in T \setminus T'\) are the same for MDPs \(M\) and \(M_L\), the second expression above is equal to 0. Thus we are left with the first expression
+    \[= |\sum_{t \in T'} P_{M}^{\pi_L}(t) V_{M}(t) - \sum_{t \in T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t)|.\]
+    Finally note that since the probabilities for all states before reaching something in \(L\) have the same transition probability for \(M\) and \(M_L\), we have that \(\sum_{t \in T'} P_{M}^{\pi_L}(t) = \sum_{t \in T'} P_{M_L}^{\pi_L}(t)\). We also have that \(\forall t, 0 \leq V_{M}(t) \leq HR_{max}\) and \(0 \leq V_{M_L}(t) \leq HR_{max}\). Thus we have
+    \[|\sum_{t \in T'} P_{M}^{\pi_L}(t) V_{M}(t) - \sum_{t \in T'} P_{M_L}^{\pi_L}(t) V_{M_L}(t)| \leq \sum_{t \in T'} P_{M}^{\pi_L} H R_{max}.\]
     
     However from our assumption we have that 
-    \[\sum_{t \in T'} P_{M_j}^{\pi_{j-1}}(t) < \frac{\alpha}{H R_{max}}.\]
+    \[\sum_{t \in T'} P_{M}^{\pi_L}(t) < \frac{\alpha}{H R_{max}}.\]
 
     Substituting this into the previous expression we have that
-    \[V^*_{M_j} - V_{M_j}(\pi_{j-1}) < \alpha\]
+    \[V^*_{M} - V_{M}(\pi_L) \leq V_{M_L}^{*} - V_M(\pi_L) < \alpha\]
     
     Which is the same statement as (1).
+\end{proof}
+
+\begin{proof}[Proof (of main theorem)]
+    By the above lemma, for any \(L \subset \mathcal{S} \times [H]\) we either have that the optimal policy for \(M_L\) is \(\epsilon\)-optimal for \(M\) or a state in \(L\) will  be played with probability of at least \(\frac{\epsilon}{HR_{max}}\). So we set \(p = \frac{\epsilon}{HR_{max}}\).
+
+    Next, let \(M_L'\) be our estimated MDP for \(M_L\). We need \(||P_{M_L} - P_{M_{L}'}||_{\infty} < \frac{\epsilon}{SH^2 R_{max}}\) which means that for each state we need (here we use \(\sigma\)-greedy)
+    \[n \geq \frac{-\ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2}\]
+    samples. In order to satisfy this amount for every state in \(M_L\) that is not in \(L\), and for every action played on each state, we would need
+    \[K_1 = nSAH \frac{\ln(1 - \delta^{\frac{1}{nSAH}})}{\ln(\frac{p\sigma (1 - \sigma)^{H}}{SAH^2})} = \frac{-\ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2} SAH \frac{\ln(1 - \delta^{\frac{1}{\frac{-\ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2} SAH}})}{\ln(\frac{\frac{\epsilon}{HR_{max}} \sigma (1 - \sigma)^{H}}{SAH^2})}\]
+    total samples. Since we need this number of samples for each iteration, the total sample complexity of the algorithm is
+    \[\frac{-\ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2} S^2AH^2 \frac{\ln(1 - \delta^{\frac{1}{\frac{-\ln(\frac{\delta}{2S})}{2(\frac{\epsilon}{SH^2 R_{max}})^2} SAH}})}{\ln(\frac{\frac{\epsilon}{HR_{max}} \sigma (1 - \sigma)^{H}}{SAH^2})}\]
+
+    The algorithm is optimal because the resulting \(M_L\) would have a value function \(\epsilon\)-close to \(M\)'s value function, and the estimated \(M_{L}'\) would have a value function \(\epsilon\)-close to \(M_L\)'s value function, all with probability \(1-\delta\).
 \end{proof}
 
 
